@@ -1,7 +1,7 @@
 from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pathlib import Path
 
 from app.routers.auth import router as auth_router
 from app.routers.dashboard import router as dashboard_router
@@ -15,19 +15,14 @@ app = FastAPI(title="Inventario Pro (MVP)")
 templates = Jinja2Templates(directory="app/templates")
 app.state.templates = templates
 
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-
-
-@app.get("/", include_in_schema=False)
-async def root():
-    # Evita 404 luego del login (si rediriges a "/")
-    return RedirectResponse("/dashboard", status_code=302)
-
+# ✅ static robusto (no revienta si no existe)
+STATIC_DIR = Path(__file__).resolve().parent / "static"   # app/static
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 @app.get("/health")
 async def health():
     return {"ok": True}
-
 
 app.include_router(auth_router)
 app.include_router(dashboard_router)
