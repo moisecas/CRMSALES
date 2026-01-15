@@ -1,10 +1,11 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+from urllib.parse import quote_plus
 
 from app.database import get_db
 from app.dependencies import get_current_user, require_roles
@@ -61,7 +62,9 @@ async def kardex_view(
 ):
     # products para el filtro dropdown
     products = (await db.execute(
-        select(Product).where(Product.org_id == _u(user.org_id), Product.active == True).order_by(Product.name)  # noqa: E712
+        select(Product)
+        .where(Product.org_id == _u(user.org_id), Product.active == True)  # noqa: E712
+        .order_by(Product.name)
     )).scalars().all()
 
     stmt = (
@@ -85,9 +88,11 @@ async def kardex_view(
 
     if date_from:
         stmt = stmt.where(StockMovement.created_at >= parse_d(date_from))
+
     if date_to:
-        # incluir todo el día: si pasas YYYY-MM-DD, úsalo como inicio del día siguiente
-        stmt = stmt.where(StockMovement.created_at < parse_d(date_to).replace(hour=0, minute=0, second=0, microsecond=0))
+        # incluir todo el día: < (día siguiente a 00:00)
+        dt_to = parse_d(date_to).replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        stmt = stmt.where(StockMovement.created_at < dt_to)
 
     stmt = stmt.order_by(StockMovement.created_at.desc()).limit(500)
 
@@ -114,17 +119,23 @@ async def adjust_form(
     db: AsyncSession = Depends(get_db),
     user=Depends(require_roles("Admin", "Bodeguero")),
 ):
+    # ✅ mensajes por querystring (evita render con ORM expirado tras rollback)
+    ok = request.query_params.get("ok")
+    err = request.query_params.get("err")
+
     products = (await db.execute(
-        select(Product).where(Product.org_id == _u(user.org_id), Product.active == True).order_by(Product.name)  # noqa: E712
+        select(Product)
+        .where(Product.org_id == _u(user.org_id), Product.active == True)  # noqa: E712
+        .order_by(Product.name)
     )).scalars().all()
 
     return request.app.state.templates.TemplateResponse(
         "inventory/adjust.html",
-        {"request": request, "user": user, "products": products, "error": None, "ok": None},
+        {"request": request, "user": user, "products": products, "error": err, "ok": ok},
     )
 
 
-@router.post("/adjust", response_class=HTMLResponse)
+@router.post("/adjust")
 async def adjust_submit(
     request: Request,
     product_id: str = Form(...),
@@ -133,20 +144,18 @@ async def adjust_submit(
     db: AsyncSession = Depends(get_db),
     user=Depends(require_roles("Admin", "Bodeguero")),
 ):
-    products = (await db.execute(
-        select(Product).where(Product.org_id == _u(user.org_id), Product.active == True).order_by(Product.name)  # noqa: E712
-    )).scalars().all()
-
     try:
-        await adjust_stock(db, org_id=user.org_id, actor_user_id=user.id, product_id=product_id, qty=qty, note=note)
-        await db.commit()
-        return request.app.state.templates.TemplateResponse(
-            "inventory/adjust.html",
-            {"request": request, "user": user, "products": products, "error": None, "ok": "Ajuste aplicado ✅"},
+        await adjust_stock(
+            db,
+            org_id=user.org_id,
+            actor_user_id=user.id,
+            product_id=product_id,
+            qty=qty,
+            note=note,
         )
+        # ✅ PRG: Post -> Redirect -> Get
+        return r("/inventory/adjust?ok=" + quote_plus("Ajuste aplicado ✅"))
+
     except Exception as e:
         await db.rollback()
-        return request.app.state.templates.TemplateResponse(
-            "inventory/adjust.html",
-            {"request": request, "user": user, "products": products, "error": str(e), "ok": None},
-        )
+        return r("/inventory/adjust?err=" + quote_plus(str(e)))

@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Product, StockMovement
+from app.services._tx import reset_tx_if_needed
 
 
 def _u(x: str) -> uuid.UUID:
@@ -20,6 +21,9 @@ async def adjust_stock(
     if qty == 0:
         raise ValueError("El ajuste no puede ser 0.")
 
+    # ✅ si hay una transacción abierta por lecturas previas, la resetea
+    await reset_tx_if_needed(db)
+
     async with db.begin():
         p = (await db.execute(
             select(Product).where(
@@ -29,7 +33,7 @@ async def adjust_stock(
             ).with_for_update()
         )).scalar_one()
 
-        new_stock = (p.current_stock or 0) + qty
+        new_stock = int(p.current_stock or 0) + int(qty)
         if new_stock < 0:
             raise ValueError(f"Stock insuficiente. Stock actual: {p.current_stock}, ajuste: {qty}")
 
@@ -44,9 +48,9 @@ async def adjust_stock(
             org_id=_u(org_id),
             product_id=p.id,
             type="ADJUST",
-            qty=qty,
+            qty=int(qty),            # 👈 guarda signo (negativo si resta)
             ref_type="adjust",
-            ref_id=p.id,  # referencia simple
+            ref_id=p.id,             # referencia simple
             note=note.strip() if note else "",
             **kwargs,
         ))
