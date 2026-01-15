@@ -1,0 +1,48 @@
+{% extends "partials/base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Inventario (Stock)</h2>
+  {% if user.role in ["Admin","Bodeguero"] %}
+    <a class="btn btn-outline-primary" href="/inventory/adjust">Ajuste (+/-)</a>
+  {% endif %}
+</div>
+
+<form class="row g-2 mb-3" method="get" action="/inventory/stock">
+  <div class="col-md-6">
+    <input class="form-control" name="q" value="{{ q }}" placeholder="Buscar por SKU o nombre">
+  </div>
+  <div class="col-md-2">
+    <select class="form-select" name="low">
+      <option value="0" {% if not low %}selected{% endif %}>Todos</option>
+      <option value="1" {% if low %}selected{% endif %}>Stock bajo</option>
+    </select>
+  </div>
+  <div class="col-md-2">
+    <button class="btn btn-outline-secondary w-100">Filtrar</button>
+  </div>
+  <div class="col-md-2">
+    <a class="btn btn-outline-dark w-100" href="/inventory/stock">Limpiar</a>
+  </div>
+</form>
+
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>SKU</th><th>Nombre</th><th>Stock</th><th>Min</th><th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in rows %}
+    <tr class="{% if p.current_stock <= p.stock_min %}table-warning{% endif %}">
+      <td>{{ p.sku }}</td>
+      <td>{{ p.name }}</td>
+      <td>{{ p.current_stock }}</td>
+      <td>{{ p.stock_min }}</td>
+      <td class="text-end">
+        <a class="btn btn-sm btn-outline-secondary" href="/inventory/kardex?product_id={{ p.id }}">Kardex</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

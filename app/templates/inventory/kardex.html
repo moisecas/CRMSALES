@@ -1,0 +1,72 @@
+{% extends "partials/base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Kardex (Movimientos)</h2>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="/inventory/stock">Stock</a>
+    {% if user.role in ["Admin","Bodeguero"] %}
+      <a class="btn btn-outline-primary" href="/inventory/adjust">Ajuste (+/-)</a>
+    {% endif %}
+  </div>
+</div>
+
+<form class="row g-2 mb-3" method="get" action="/inventory/kardex">
+  <div class="col-md-4">
+    <select class="form-select" name="product_id">
+      <option value="">(Todos los productos)</option>
+      {% for p in products %}
+        <option value="{{ p.id }}" {% if product_id and product_id|lower == p.id|string|lower %}selected{% endif %}>
+          {{ p.sku }} - {{ p.name }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-md-2">
+    <select class="form-select" name="mov_type">
+      <option value="">(Todos)</option>
+      <option value="IN" {% if mov_type=="IN" %}selected{% endif %}>IN</option>
+      <option value="OUT" {% if mov_type=="OUT" %}selected{% endif %}>OUT</option>
+      <option value="ADJUST" {% if mov_type=="ADJUST" %}selected{% endif %}>ADJUST</option>
+    </select>
+  </div>
+
+  <div class="col-md-2">
+    <input class="form-control" type="date" name="date_from" value="{{ date_from }}">
+  </div>
+  <div class="col-md-2">
+    <input class="form-control" type="date" name="date_to" value="{{ date_to }}">
+  </div>
+
+  <div class="col-md-2">
+    <button class="btn btn-outline-secondary w-100">Filtrar</button>
+  </div>
+</form>
+
+<table class="table table-sm table-striped">
+  <thead>
+    <tr>
+      <th>Fecha</th>
+      <th>Producto</th>
+      <th>Tipo</th>
+      <th>Cant</th>
+      <th>Ref</th>
+      <th>Nota</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for mov, prod in rows %}
+    <tr>
+      <td>{{ mov.created_at }}</td>
+      <td>{{ prod.sku }} - {{ prod.name }}</td>
+      <td>{{ mov.type }}</td>
+      <td>{{ mov.qty }}</td>
+      <td>{{ mov.ref_type }}</td>
+      <td>{{ mov.note or "" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="text-muted small">Mostrando máximo 500 movimientos.</div>
+{% endblock %}

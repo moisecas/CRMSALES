@@ -1,0 +1,103 @@
+{% extends "partials/base.html" %}
+{% block content %}
+
+{# ✅ Lee querystring para mostrar modal #}
+{% set modal = request.query_params.get('modal') %}
+{% set reason = request.query_params.get('reason') %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Productos</h2>
+  {% if user.role in ["Admin","Bodeguero"] %}
+    <a class="btn btn-primary" href="/products/new">Nuevo producto</a>
+  {% endif %}
+</div>
+
+<form class="row g-2 mb-3" method="get" action="/products">
+  <div class="col-md-6">
+    <input class="form-control" name="q" value="{{ q }}" placeholder="Buscar por SKU o nombre">
+  </div>
+  <div class="col-md-2">
+    <button class="btn btn-outline-secondary w-100">Buscar</button>
+  </div>
+  <div class="col-md-2">
+    <a class="btn btn-outline-dark w-100" href="/products">Limpiar</a>
+  </div>
+</form>
+
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>SKU</th>
+      <th>Nombre</th>
+      <th>Categoría</th>
+      <th>Stock</th>
+      <th>Min</th>
+      <th>Precio</th>
+      <th>Activo</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in rows %}
+    <tr>
+      <td>{{ p.sku }}</td>
+      <td>{{ p.name }}</td>
+      <td>{{ p.category or "—" }}</td>
+      <td>{{ p.current_stock }}</td>
+      <td>{{ p.stock_min }}</td>
+      <td>{{ p.price }}</td>
+      <td>{{ "Sí" if p.active else "No" }}</td>
+      <td class="text-end">
+        {% if user.role in ["Admin","Bodeguero"] %}
+          <a class="btn btn-sm btn-outline-primary" href="/products/{{ p.id }}/edit">Editar</a>
+        {% endif %}
+
+        {% if user.role == "Admin" %}
+          <form class="d-inline" method="post" action="/products/{{ p.id }}/delete">
+            <button class="btn btn-sm btn-outline-danger" type="submit">Borrar</button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{# ✅ Modal si no se puede borrar #}
+{% if modal == "cannot_delete" %}
+<div class="modal fade" id="cannotDeleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">No se puede eliminar</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        {% if reason == "sale" %}
+          Este producto no se puede eliminar porque está relacionado a una o más ventas.
+        {% else %}
+          Este producto no se puede eliminar porque tiene información relacionada.
+        {% endif %}
+        <div class="mt-2 text-muted small">
+          Recomendación: si no quieres que aparezca para nuevas ventas, desactívalo (lo agregamos en el siguiente paso si lo quieres).
+        </div>
+      </div>
+      <div class="modal-footer">
+        <a class="btn btn-outline-secondary" href="/products">Cerrar</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var el = document.getElementById("cannotDeleteModal");
+    if (el) {
+      var modal = new bootstrap.Modal(el);
+      modal.show();
+    }
+  });
+</script>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "partials/base.html" %}
+{% block content %}
+<h2 class="mb-3">Dashboard</h2>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-body">
+        <div class="text-muted">Productos</div>
+        <div class="fs-3">{{ total_products }}</div>
+        <a href="/products" class="btn btn-sm btn-outline-primary mt-2">Ver productos</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-body">
+        <div class="text-muted">Stock bajo</div>
+        <div class="fs-3">{{ low_stock }}</div>
+        <a href="/inventory/stock?low=1" class="btn btn-sm btn-outline-warning mt-2">Ver stock bajo</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-body">
+        <div class="text-muted">Ventas del mes</div>
+        <div class="fs-3">{{ sales_month }}</div>
+        <a href="/sales" class="btn btn-sm btn-outline-success mt-2">Ver ventas</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="mb-3">Últimas ventas</h5>
+        <table class="table table-sm">
+          <thead>
+            <tr><th>Número</th><th>Fecha</th><th>Estado</th><th>Total</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for s in last_sales %}
+            <tr>
+              <td>{{ s.number or "—" }}</td>
+              <td>{{ s.date }}</td>
+              <td>{{ s.status }}</td>
+              <td>{{ s.total }}</td>
+              <td><a class="btn btn-sm btn-outline-secondary" href="/sales/{{ s.id }}">Ver</a></td>
+            </tr>
+            {% endfor %}
+            {% if last_sales|length == 0 %}
+              <tr><td colspan="5" class="text-muted">Sin ventas todavía</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="mb-3">Productos con stock bajo</h5>
+        <table class="table table-sm">
+          <thead>
+            <tr><th>SKU</th><th>Producto</th><th>Stock</th><th>Min</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for p in low_products %}
+            <tr>
+              <td>{{ p.sku }}</td>
+              <td>{{ p.name }}</td>
+              <td>{{ p.current_stock }}</td>
+              <td>{{ p.stock_min }}</td>
+              <td><a class="btn btn-sm btn-outline-secondary" href="/inventory/kardex?product_id={{ p.id }}">Kardex</a></td>
+            </tr>
+            {% endfor %}
+            {% if low_products|length == 0 %}
+              <tr><td colspan="5" class="text-muted">Todo bien, sin stock bajo 🎉</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

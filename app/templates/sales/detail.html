@@ -1,0 +1,252 @@
+{% extends "partials/base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Venta {{ sale.number or "(DRAFT)" }}</h2>
+  {% if error %}
+  <div class="alert alert-danger">{{ error.replace("+", " ") }}</div>
+  {% endif %}
+
+  <a class="btn btn-outline-secondary" href="/sales">Volver</a>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-body">
+        <div><b>Estado:</b> {{ sale.status }}</div>
+        <div><b>Fecha:</b> {{ sale.date }}</div>
+        <div><b>Total:</b> {{ sale.total }}</div>
+
+        {% if sale.status == "DRAFT" and user.role in ["Admin","Vendedor"] %}
+        <form method="post" action="/sales/{{ sale.id }}/confirm" class="mt-3">
+          <button class="btn btn-success w-100">Confirmar (descuenta stock)</button>
+        </form>
+        {% endif %}
+
+        {% if sale.status == "CONFIRMED" and user.role == "Admin" %}
+        <form method="post" action="/sales/{{ sale.id }}/cancel" class="mt-2">
+          <button class="btn btn-warning w-100">Cancelar (revierte stock)</button>
+        </form>
+        {% endif %}
+
+        {% if sale.status == "DRAFT" and user.role == "Admin" %}
+        <form method="post" action="/sales/{{ sale.id }}/delete" class="mt-2" onsubmit="return confirm('¿Borrar venta DRAFT?')">
+          <button class="btn btn-danger w-100">Borrar DRAFT</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-body">
+        <h5>Cliente</h5>
+
+        {% if sale.status == "DRAFT" and user.role in ["Admin","Vendedor"] %}
+        <form method="post" action="/sales/{{ sale.id }}/set_customer" class="row g-2">
+          <div class="col-md-8">
+            <select name="customer_id" class="form-select">
+              <option value="">(Sin cliente)</option>
+              {% for c in customers %}
+                <option value="{{ c.id }}" {% if sale.customer_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <button class="btn btn-outline-primary w-100">Guardar</button>
+          </div>
+        </form>
+        {% else %}
+          <div>{{ sale.customer_id or "—" }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card mt-3" id="items_table_container">
+      <div class="card-body">
+        <h5 class="mb-3">Items</h5>
+
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <colgroup>
+              <col style="width:46%">
+              <col style="width:12%">
+              <col style="width:14%">
+              <col style="width:12%">
+              <col style="width:12%">
+              <col style="width:4%">
+            </colgroup>
+
+            <thead class="table-light">
+              <tr>
+                <th>Producto</th>
+                <th class="text-center">Cant</th>
+                <th class="text-center">Precio</th>
+                <th class="text-center">Desc</th>
+                <th class="text-end">Total</th>
+                <th></th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {% for it in items %}
+              <tr>
+                <td>
+                  {# Si en tu router ya traes product join, cambia por it.product.sku etc.
+                     Como mínimo mostramos el id (lo que tienes hoy) #}
+                  {{ it.product_id }}
+                </td>
+                <td class="text-center">{{ it.qty }}</td>
+                <td class="text-center">{{ it.unit_price }}</td>
+                <td class="text-center">{{ it.discount or 0 }}</td>
+                <td class="text-end">{{ it.line_total }}</td>
+                <td class="text-end">
+                  {% if sale.status == "DRAFT" and user.role in ["Admin","Vendedor"] %}
+                  <form method="post" action="/sales/{{ sale.id }}/items/{{ it.id }}/delete" class="m-0" onsubmit="return confirm('¿Eliminar item?')">
+                    <button class="btn btn-sm btn-outline-danger">X</button>
+                  </form>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+
+              {% if items|length == 0 %}
+              <tr>
+                <td colspan="6" class="text-muted">Aún no hay items en la venta</td>
+              </tr>
+              {% endif %}
+
+              {% if sale.status == "DRAFT" and user.role in ["Admin","Vendedor"] %}
+              <tr>
+                <td>
+                  <label class="form-label mb-1 small text-muted">Agregar item</label>
+                  <select id="add_product_id" name="product_id" class="form-select form-select-sm" required>
+                    {% for p in products %}
+                      <option value="{{ p.id }}"
+                              data-price="{{ p.price or 0 }}"
+                              data-stock="{{ p.current_stock or 0 }}">
+                        {{ p.sku }} - {{ p.name }} (stock {{ p.current_stock }})
+                      </option>
+                    {% endfor %}
+                  </select>
+                </td>
+
+                <td class="text-center">
+                  <label class="form-label mb-1 small text-muted">&nbsp;</label>
+                  <input id="add_qty" name="qty" type="number"
+                         class="form-control form-control-sm text-center"
+                         value="1" min="1" step="1" required>
+                </td>
+
+                <td class="text-center">
+                  <label class="form-label mb-1 small text-muted">&nbsp;</label>
+                  <input id="add_price" name="unit_price" type="number"
+                         class="form-control form-control-sm text-center"
+                         placeholder="Precio unitario (COP)" min="0" step="1" required>
+                </td>
+
+                <td class="text-center">
+                  <label class="form-label mb-1 small text-muted">&nbsp;</label>
+                  <input id="add_discount" name="discount" type="number"
+                         class="form-control form-control-sm text-center"
+                         placeholder="0" value="0" min="0" step="1">
+                  {# ✅ descuento opcional (no required) #}
+                </td>
+
+                <td class="text-end">
+                  <label class="form-label mb-1 small text-muted">&nbsp;</label>
+                  <div class="d-flex justify-content-end gap-2">
+                    <div class="text-muted small pt-1" id="add_preview_total">—</div>
+                    <button class="btn btn-sm btn-primary"
+                            type="submit"
+                            form="add_item_form">
+                      +
+                    </button>
+                  </div>
+                </td>
+
+                <td></td>
+              </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if sale.status == "DRAFT" and user.role in ["Admin","Vendedor"] %}
+        {# ✅ Form separado para que el botón + funcione bien #}
+        <form id="add_item_form" method="post" action="/sales/{{ sale.id }}/items/add" class="d-none">
+          <input type="hidden" name="product_id" id="add_product_id_hidden">
+          <input type="hidden" name="qty" id="add_qty_hidden">
+          <input type="hidden" name="unit_price" id="add_price_hidden">
+          <input type="hidden" name="discount" id="add_discount_hidden">
+        </form>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if sale.status == "DRAFT" and user.role in ["Admin","Vendedor"] %}
+<script>
+  function setPriceFromSelected() {
+    const sel = document.getElementById("add_product_id");
+    const priceInput = document.getElementById("add_price");
+    if (!sel || !priceInput) return;
+    const opt = sel.options[sel.selectedIndex];
+    const price = opt?.dataset?.price ?? "0";
+    priceInput.value = price;
+  }
+
+  function updatePreviewTotal() {
+    const qty = parseInt(document.getElementById("add_qty")?.value || "0", 10);
+    const price = parseInt(document.getElementById("add_price")?.value || "0", 10);
+    const disc = parseInt(document.getElementById("add_discount")?.value || "0", 10);
+    const total = Math.max((qty * price) - disc, 0);
+    const el = document.getElementById("add_preview_total");
+    if (el) el.textContent = total ? total.toLocaleString("es-CO") : "—";
+  }
+
+  // Copia valores a inputs hidden antes de submit
+  function syncHiddenForm() {
+    document.getElementById("add_product_id_hidden").value = document.getElementById("add_product_id").value;
+    document.getElementById("add_qty_hidden").value = document.getElementById("add_qty").value;
+    document.getElementById("add_price_hidden").value = document.getElementById("add_price").value;
+    document.getElementById("add_discount_hidden").value = document.getElementById("add_discount").value || "0";
+  }
+
+  document.addEventListener("change", (e) => {
+    if (e.target && e.target.id === "add_product_id") {
+      setPriceFromSelected();
+      updatePreviewTotal();
+      syncHiddenForm();
+    }
+  });
+
+  document.addEventListener("input", (e) => {
+    if (["add_qty", "add_price", "add_discount"].includes(e.target?.id)) {
+      updatePreviewTotal();
+      syncHiddenForm();
+    }
+  });
+
+  document.addEventListener("DOMContentLoaded", () => {
+    setPriceFromSelected();
+    updatePreviewTotal();
+    syncHiddenForm();
+
+    // hook submit del form hidden
+    const btn = document.querySelector('button[form="add_item_form"]');
+    if (btn) {
+      btn.addEventListener("click", () => {
+        syncHiddenForm();
+        document.getElementById("add_item_form").requestSubmit();
+      });
+    }
+  });
+</script>
+{% endif %}
+
+{% endblock %}

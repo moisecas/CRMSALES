@@ -1,0 +1,39 @@
+{% extends "partials/base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Ventas</h2>
+
+  {% if user.role in ["Admin", "Vendedor"] %}
+  <form method="post" action="/sales/new">
+    <button class="btn btn-primary">Nueva venta</button>
+  </form>
+  {% endif %}
+</div>
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Número</th>
+      <th>Fecha</th>
+      <th>Estado</th>
+      <th>Total</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in rows %}
+    <tr>
+      <td>{{ s.number or "—" }}</td>
+      <td>{{ s.date }}</td>
+      <td>{{ s.status }}</td>
+      <td>{{ s.total }}</td>
+      <td><a class="btn btn-sm btn-outline-secondary" href="/sales/{{ s.id }}">Ver</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
